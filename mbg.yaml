@@ -394,43 +394,48 @@ Resources:
           yum install -y httpd php php-mysqlnd php-pdo php-mbstring git composer
 
           sed -i 's/Listen 80/Listen 8080/' /etc/httpd/conf/httpd.conf
-
-          systemctl start httpd
-          systemctl enable httpd
+          sed -i 's|DocumentRoot "/var/www/html"|DocumentRoot "/var/www/html/backend/public"|' /etc/httpd/conf/httpd.conf
+          sed -i 's|<Directory "/var/www/html">|<Directory "/var/www/html/backend/public">|' /etc/httpd/conf/httpd.conf
+          sed -i 's/AllowOverride None/AllowOverride All/g' /etc/httpd/conf/httpd.conf
 
           cd /var/www/html
           rm -rf * .git
           git clone https://github.com/fendyramadhani9-cloud/mbg-app-deployment.git .
 
-          if [ -f "composer.json" ]; then
+          # Deleting frontend folder on backend EC2
+          rm -rf /var/www/html/frontend
+
+          if [ -f "/var/www/html/backend/composer.json" ]; then
+              cd /var/www/html/backend
               composer install --no-dev --no-interaction
+              cd /var/www/html
           fi
 
-          cat << 'EOF' > /var/www/html/config.php
-          <?php
-          define('DB_HOST', '${RDSInstance.Endpoint.Address}');
-          define('DB_PORT', '3306');
-          define('DB_USER', 'mbg_admin');
-          define('DB_PASS', '${DBPassword}');
-          define('DB_NAME', 'mbg_db');
-          define('AWS_REGION', 'us-east-1');
-          define('S3_BUCKET_NAME', 'mbg-uploads-${UserIdentifier}');
-          define('SNS_TOPIC_ARN', '${SNSTopic}');
-          define('API_KEY', 'mbg-secret-key-2024');
-          define('APP_PORT', 8080);
+          # Fill .env file without overwriting config.php
+          cat << 'EOF' > /var/www/html/backend/.env
+          DB_HOST=${RDSInstance.Endpoint.Address}
+          DB_PORT=3306
+          DB_USER=mbg_admin
+          DB_PASS=${DBPassword}
+          DB_NAME=mbg_db
+          S3_BUCKET=mbg-uploads-${UserIdentifier}
+          S3_BUCKET_NAME=mbg-uploads-${UserIdentifier}
+          AWS_REGION=us-east-1
+          SNS_TOPIC_ARN=${SNSTopic}
+          API_KEY=mbg-secret-key-2024
+          APP_PORT=8080
+          APP_ENV=production
           EOF
-
-          if [ -d "/var/www/html/backend" ]; then
-              cp /var/www/html/config.php /var/www/html/backend/config.php
-          fi
 
           chown -R apache:apache /var/www/html
           chmod -R 755 /var/www/html
 
-          if [ -f "/var/www/html/backend/core/Database.php" ]; then
-              php /var/www/html/backend/core/Database.php >> /var/log/db_migration.log 2>&1
-          elif [ -f "/var/www/html/core/Database.php" ]; then
-              php /var/www/html/core/Database.php >> /var/log/db_migration.log 2>&1
+          systemctl restart httpd
+          systemctl enable httpd
+
+          # Run migration CLI script
+          if [ -f "/var/www/html/backend/migrate.php" ]; then
+              php /var/www/html/backend/migrate.php >> /var/log/db_migration.log 2>&1
           fi
 
   # ==========================================
@@ -507,23 +512,28 @@ Resources:
 
             echo "session.save_path = \"/mnt/efs/mbg-session\"" >> /etc/php.ini
 
+            sed -i 's|DocumentRoot "/var/www/html"|DocumentRoot "/var/www/html/frontend"|' /etc/httpd/conf/httpd.conf
+            sed -i 's|<Directory "/var/www/html">|<Directory "/var/www/html/frontend">|' /etc/httpd/conf/httpd.conf
+            sed -i 's/AllowOverride None/AllowOverride All/g' /etc/httpd/conf/httpd.conf
+
             cd /var/www/html
             rm -rf * .git
             git clone https://github.com/fendyramadhani9-cloud/mbg-app-deployment.git .
 
-            cat << 'EOF' > /var/www/html/config.php
-            <?php
-            define('API_BASE_URL', 'http://${Ec2Backend.PrivateIp}:8080/api');
-            define('API_KEY', 'mbg-secret-key-2024');
-            EOF
+            # Deleting backend folder on frontend EC2
+            rm -rf /var/www/html/backend
 
-            if [ -d "/var/www/html/frontend" ]; then
-                cp /var/www/html/config.php /var/www/html/frontend/config.php
-            fi
+            # Fill .env file without overwriting config.php
+            cat << 'EOF' > /var/www/html/frontend/.env
+            API_BASE_URL=http://${Ec2Backend.PrivateIp}:8080/api
+            API_KEY=mbg-secret-key-2024
+            SESSION_SAVE_PATH=/mnt/efs/mbg-session
+            PORT=80
+            EOF
 
             chown -R apache:apache /var/www/html
             chmod -R 755 /var/www/html
-            systemctl start httpd
+            systemctl restart httpd
             systemctl enable httpd
 
   AutoScalingGroupFe:

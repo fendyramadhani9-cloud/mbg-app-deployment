@@ -44,7 +44,7 @@ return [
         'name' => cfg('DB_NAME', 'mbg_db'),
     ],
     's3' => [
-        'bucket' => cfg('S3_BUCKET', 'mbg-upload-15671-503038630796-us-east-1-an'),
+        'bucket' => cfg('S3_BUCKET', cfg('S3_BUCKET_NAME', 'mbg-upload-15671-503038630796-us-east-1-an')),
         'region' => cfg('AWS_REGION', 'us-east-1'),
     ],
     'sns' => [
