@@ -26,16 +26,22 @@ mbg-app/
 
 ## Menjalankan secara lokal (development)
 
-**1. Siapkan database MySQL** (nama bebas, mis. `mbg_db`), lalu isi `backend/.env` (copy dari `.env.example`) dengan kredensial lokal Anda. Tabel akan dibuat otomatis saat BE pertama kali diakses (auto-migration).
+**1. Siapkan database MySQL** (nama bebas, mis. `mbg_db`), lalu isi `backend/.env` (copy dari `.env.example`) dengan kredensial lokal Anda.
 
-**2. Jalankan Back End:**
+**2. Jalankan migrasi database (WAJIB, sekali saat pertama kali):**
 ```bash
 cd backend
 cp .env.example .env   # lalu edit sesuai DB lokal Anda
+php migrate.php
+```
+Script ini akan DROP → CREATE → seed tabel. Jalankan lagi hanya jika ingin reset DB.
+
+**3. Jalankan Back End:**
+```bash
 php -S 0.0.0.0:8080 router.php
 ```
 
-**3. Jalankan Front End** (di terminal lain):
+**4. Jalankan Front End** (di terminal lain):
 ```bash
 cd frontend
 cp .env.example .env
@@ -44,7 +50,10 @@ cp .env.example .env
 php -S 0.0.0.0:8000
 ```
 
-**4. Buka** `http://localhost:8000` di browser. Buat akun lewat halaman **Daftar** (otomatis role `masyarakat`). Untuk mencoba role `bgn`/`sppg`, ubah kolom `role` user tersebut langsung di database, atau insert manual, karena pembuatan akun BGN/SPPG memang bukan alur publik (sesuai dokumen, hanya role `masyarakat` yang bisa self-register).
+**5. Buka** `http://localhost:8000` di browser. Akun seed yang tersedia:
+- `admin@bgn.go.id` / `password123` (role: bgn)
+- `operator@sppg.com` / `password123` (role: sppg)
+- `masyarakat@gmail.com` / `password123` (role: masyarakat)
 
 ## Fitur UI (Front End)
 
@@ -54,7 +63,19 @@ php -S 0.0.0.0:8000
 
 ## Catatan Production (sesuai dokumen teknis)
 
-- Nilai `.env` (`DB_*`, `S3_BUCKET_NAME`, `AWS_REGION`, `SNS_TOPIC_ARN`, `API_BASE_URL`, `SESSION_SAVE_PATH`) **diisi oleh tim infrastruktur**, bukan di-hardcode.
+- **Migration**: Jalankan `php backend/migrate.php` **sekali** saat pertama deploy atau saat perlu reset DB. `Database::get()` tidak lagi otomatis menjalankan migration — aman dipanggil tiap request.
+- Nilai `.env` (`DB_*`, `S3_BUCKET_NAME`, `AWS_REGION`, `SNS_TOPIC_ARN`, `API_BASE_URL`, `SESSION_SAVE_PATH`, `FRONTEND_URL`) **diisi oleh tim infrastruktur**, bukan di-hardcode.
+- Set `APP_ENV=production` di `.env` backend untuk menonaktifkan `display_errors` dan mengaktifkan CORS terbatas.
 - `S3Uploader` & `SnsNotifier` memakai AWS SDK for PHP (`composer require aws/aws-sdk-php`) — kredensial AWS otomatis lewat mekanisme server, tidak perlu ditulis manual. Bila SDK belum terpasang, keduanya otomatis fallback ke penyimpanan lokal/log (khusus untuk development, **jangan dipakai di production**).
 - `frontend/includes/session_init.php` WAJIB di-include di setiap halaman sebelum output, agar session diarahkan ke folder shared (bukan disk lokal), karena FE berjalan di banyak server sekaligus.
-- Endpoint `/health.php` di kedua sisi selalu HTTP 200 selama sehat (dipakai Load Balancer).
+- Endpoint `/health.php` di kedua sisi selalu HTTP 200 selama sehat (dipakai Load Balancer). Backend health check menggunakan `Database::connect()` (bukan `::get()`) agar tidak memicu migration.
+
+📌 Checklist sebelum deploy AWS
+Yang perlu dilakukan tim infra:
+
+Isi .env di kedua instance (backend & frontend)
+Set APP_ENV=production dan FRONTEND_URL di backend .env
+Jalankan migration satu kali setelah instance pertama naik:
+php backend/migrate.php
+Pastikan SESSION_SAVE_PATH (EFS) di frontend .env sudah mount dan writable
+Kode sudah production-ready. 🚀

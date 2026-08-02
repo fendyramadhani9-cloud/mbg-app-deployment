@@ -4,18 +4,18 @@
  * Database.php
  *
  * Kelas singleton untuk koneksi PDO.
- * Fitur:
- *  - Reset (DROP) seluruh tabel → migrasi ulang (CREATE) → seeding data dummy.
- *  - Guard flag agar proses reset+migrate+seed hanya berjalan SEKALI per siklus hidup
- *    proses PHP, meskipun Database::get() dipanggil berkali-kali.
+ *
+ * PENTING (production):
+ *  - Database::get()  → HANYA mengembalikan koneksi PDO. TIDAK menjalankan
+ *    reset/migrate/seed. Aman dipanggil berulang kali tiap request.
+ *  - Database::initialize() → Jalankan HANYA sekali via CLI saat deploy:
+ *      php backend/migrate.php
+ *    Fungsi ini melakukan: DROP semua tabel → CREATE ulang → seed data awal.
  */
 class Database
 {
-    /** @var PDO|null Instance PDO tunggal (singleton). */
+    /** @var PDO|null Instance PDO tunggal (singleton per proses PHP). */
     private static ?PDO $pdo = null;
-
-    /** @var bool Pastikan reset+migrate+seed hanya berjalan sekali. */
-    private static bool $initialized = false;
 
     // -------------------------------------------------------------------------
     // Public API
@@ -23,22 +23,35 @@ class Database
 
     /**
      * Kembalikan instance PDO.
-     * Inisialisasi (reset → migrate → seed) otomatis dilakukan satu kali.
+     * TIDAK menjalankan migration/seed — aman untuk dipanggil tiap request.
      */
     public static function get(): PDO
     {
         if (self::$pdo === null) {
             self::$pdo = self::createConnection();
         }
-
-        if (!self::$initialized) {
-            self::$initialized = true;
-            self::reset(self::$pdo);
-            self::migrate(self::$pdo);
-            self::seed(self::$pdo);
-        }
-
         return self::$pdo;
+    }
+
+    /**
+     * Buat koneksi langsung (PDO baru, bukan singleton).
+     * Dipakai oleh health check agar tidak memicu inisialisasi apapun.
+     */
+    public static function connect(): PDO
+    {
+        return self::createConnection();
+    }
+
+    /**
+     * Jalankan reset → migrate → seed.
+     * HANYA dipanggil via CLI (backend/migrate.php), BUKAN dari request HTTP.
+     */
+    public static function initialize(): void
+    {
+        $pdo = self::createConnection();
+        self::reset($pdo);
+        self::migrate($pdo);
+        self::seed($pdo);
     }
 
     // -------------------------------------------------------------------------
@@ -102,10 +115,12 @@ class Database
     private static function migrate(PDO $pdo): void
     {
         // --- Tabel: sppg ---
+        // Kolom: id, nama, wilayah, alamat, penanggung_jawab, created_at
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS `sppg` (
                 `id`               INT          NOT NULL AUTO_INCREMENT,
-                `nama_sppg`        VARCHAR(150) NOT NULL,
+                `nama`             VARCHAR(150) NOT NULL,
+                `wilayah`          VARCHAR(150)          DEFAULT NULL,
                 `alamat`           VARCHAR(255)          DEFAULT NULL,
                 `penanggung_jawab` VARCHAR(150)          DEFAULT NULL,
                 `created_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -193,20 +208,22 @@ class Database
         // ------------------------------------------------------------------
         $sppgData = [
             [
-                'nama_sppg'        => 'SPPG Pusat Jakarta',
+                'nama'             => 'SPPG Pusat Jakarta',
+                'wilayah'          => 'DKI Jakarta',
                 'alamat'           => 'Jl. Sudirman No. 1',
                 'penanggung_jawab' => 'Budi Santoso',
             ],
             [
-                'nama_sppg'        => 'SPPG Wilayah Bandung',
+                'nama'             => 'SPPG Wilayah Bandung',
+                'wilayah'          => 'Jawa Barat',
                 'alamat'           => 'Jl. Asia Afrika No. 45',
                 'penanggung_jawab' => 'Siti Rahma',
             ],
         ];
 
         $stmtSppg = $pdo->prepare("
-            INSERT INTO `sppg` (`nama_sppg`, `alamat`, `penanggung_jawab`)
-            VALUES (:nama_sppg, :alamat, :penanggung_jawab)
+            INSERT INTO `sppg` (`nama`, `wilayah`, `alamat`, `penanggung_jawab`)
+            VALUES (:nama, :wilayah, :alamat, :penanggung_jawab)
         ");
 
         foreach ($sppgData as $row) {

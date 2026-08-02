@@ -15,8 +15,13 @@ require_once __DIR__ . '/../api/upload.php';
 
 Auth::startSession();
 
-// CORS dasar — sesuaikan origin di production sesuai domain Front End
-header('Access-Control-Allow-Origin: *');
+// CORS — di production dibatasi ke domain Front End (FRONTEND_URL di .env).
+// Di development (APP_ENV != production) fallback ke wildcard untuk kemudahan testing.
+$frontendUrl = getenv('FRONTEND_URL') ?: '';
+$corsOrigin  = (getenv('APP_ENV') === 'production' && $frontendUrl)
+    ? rtrim($frontendUrl, '/')
+    : '*';
+header('Access-Control-Allow-Origin: ' . $corsOrigin);
 header('Access-Control-Allow-Headers: Content-Type, X-API-Key');
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
