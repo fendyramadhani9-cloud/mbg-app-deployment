@@ -37,18 +37,18 @@ if (!function_exists('cfg')) {
 
 return [
     'db' => [
-        'host' => cfg('DB_HOST', 'mbg-rds-mysql.cdsxe0eeudnq.us-east-1.rds.amazonaws.com'),
+        'host' => cfg('DB_HOST', 'mbg-rds-mysql.XXXXXXXXXX.us-east-1.rds.amazonaws.com'),
         'port' => cfg('DB_PORT', '3306'),
         'user' => cfg('DB_USER', 'mbg_admin'),
         'pass' => cfg('DB_PASS', 'mbgmysql'),
         'name' => cfg('DB_NAME', 'mbg_db'),
     ],
     's3' => [
-        'bucket' => cfg('S3_BUCKET', 'mbg-upload-15671-503038630796-us-east-1-an'),
+        'bucket' => cfg('S3_BUCKET', 'mbg-upload-XXXXXX-XXXXXX-us-east-1-an'),
         'region' => cfg('AWS_REGION', 'us-east-1'),
     ],
     'sns' => [
-        'topic_arn' => cfg('SNS_TOPIC_ARN', 'arn:aws:sns:us-east-1:503038630796:mbg-sns-notifikasi'),
+        'topic_arn' => cfg('SNS_TOPIC_ARN', 'arn:aws:sns:us-east-1:XXXXXXX:mbg-sns-notifikasi'),
     ],
     'api_key'  => cfg('API_KEY', 'mbg-secret-key-2024'),
     'app_port' => cfg('APP_PORT', '8080'),
