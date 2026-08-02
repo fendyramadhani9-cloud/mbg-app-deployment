@@ -1,0 +1,20 @@
+# Environment & Credentials
+.env
+*.env
+backend/.env
+frontend/.env
+
+# Composer Dependencies
+vendor/
+backend/vendor/
+
+# Local Storage & Logs
+backend/storage/*
+!backend/storage/.gitkeep
+*.log
+
+# OS & IDE Files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
