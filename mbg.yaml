@@ -1,0 +1,592 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation Template UKK AWS Cloud Engineer - Fendy Ramadhani (NIS 15671)'
+
+Parameters:
+  UserIdentifier:
+    Type: String
+    Description: 'Username/NIS untuk keunikan S3 Bucket'
+    Default: '15671'
+  AdminEmail:
+    Type: String
+    Description: 'Email BGN untuk Notifikasi SNS'
+    Default: '24.tjkt1.16@smkn1bms.sch.id'
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: 'Password Master Database RDS (mbg_admin)'
+    Default: 'password123'
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: 'Pilih KeyPair AWS Academy'
+    Default: 'vockey'
+
+Resources:
+  # ==========================================
+  # 1. VPC & NETWORK RESOURCES
+  # ==========================================
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.20.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: mbg-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: mbg-igw
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  SubnetPublicAlb1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.20.1.0/24
+      AvailabilityZone: us-east-1a
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: mbg-subnet-public-alb-1a
+
+  SubnetPublicAlb1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.20.2.0/24
+      AvailabilityZone: us-east-1b
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: mbg-subnet-public-alb-1b
+
+  SubnetPrivateFe1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.20.11.0/24
+      AvailabilityZone: us-east-1a
+      Tags:
+        - Key: Name
+          Value: mbg-subnet-private-fe-1a
+
+  SubnetPrivateFe1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.20.12.0/24
+      AvailabilityZone: us-east-1b
+      Tags:
+        - Key: Name
+          Value: mbg-subnet-private-fe-1b
+
+  SubnetPrivateBe:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.20.10.0/24
+      AvailabilityZone: us-east-1a
+      Tags:
+        - Key: Name
+          Value: mbg-subnet-private-be
+
+  SubnetDb1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.20.20.0/24
+      AvailabilityZone: us-east-1a
+      Tags:
+        - Key: Name
+          Value: mbg-subnet-db-1a
+
+  SubnetDb1b:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.20.21.0/24
+      AvailabilityZone: us-east-1b
+      Tags:
+        - Key: Name
+          Value: mbg-subnet-db-1b
+
+  NatEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEIP.AllocationId
+      SubnetId: !Ref SubnetPublicAlb1a
+      Tags:
+        - Key: Name
+          Value: mbg-natgw-1a
+
+  RouteTablePublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: mbg-rt-public
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTablePublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  SubnetPublicAlb1aAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicAlb1a
+      RouteTableId: !Ref RouteTablePublic
+
+  SubnetPublicAlb1bAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublicAlb1b
+      RouteTableId: !Ref RouteTablePublic
+
+  RouteTablePrivate:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: mbg-rt-private
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTablePrivate
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  SubnetPrivateFe1aAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPrivateFe1a
+      RouteTableId: !Ref RouteTablePrivate
+
+  SubnetPrivateFe1bAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPrivateFe1b
+      RouteTableId: !Ref RouteTablePrivate
+
+  SubnetPrivateBeAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPrivateBe
+      RouteTableId: !Ref RouteTablePrivate
+
+  # ==========================================
+  # 2. SECURITY GROUPS
+  # ==========================================
+  SgAlb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: mbg-sg-alb
+      GroupDescription: SG for ALB
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: mbg-sg-alb
+
+  SgFe:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: mbg-sg-fe
+      GroupDescription: SG for FE Instances
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref SgAlb
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: mbg-sg-fe
+
+  SgBe:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: mbg-sg-be
+      GroupDescription: SG for BE Instance
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref SgFe
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: mbg-sg-be
+
+  SgRds:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: mbg-sg-rds
+      GroupDescription: SG for RDS MySQL
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref SgBe
+      Tags:
+        - Key: Name
+          Value: mbg-sg-rds
+
+  SgEfs:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: mbg-sg-efs
+      GroupDescription: SG for EFS Mount Target
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !Ref SgFe
+      Tags:
+        - Key: Name
+          Value: mbg-sg-efs
+
+  # ==========================================
+  # 3. S3 BUCKET & SNS TOPIC
+  # ==========================================
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "mbg-uploads-${UserIdentifier}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: !Sub "mbg-uploads-${UserIdentifier}"
+
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: mbg-sns-notifikasi
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AdminEmail
+      Tags:
+        - Key: Name
+          Value: mbg-sns-notifikasi
+
+  # ==========================================
+  # 4. EFS SHARED STORAGE
+  # ==========================================
+  FileSystemEFS:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      PerformanceMode: generalPurpose
+      ThroughputMode: bursting
+      FileSystemTags:
+        - Key: Name
+          Value: mbg-efs-fe-session
+
+  MountTarget1a:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref FileSystemEFS
+      SubnetId: !Ref SubnetPrivateFe1a
+      SecurityGroups:
+        - !Ref SgEfs
+
+  MountTarget1b:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref FileSystemEFS
+      SubnetId: !Ref SubnetPrivateFe1b
+      SecurityGroups:
+        - !Ref SgEfs
+
+  # ==========================================
+  # 5. RDS MYSQL
+  # ==========================================
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: mbg-db-subnet-group
+      DBSubnetGroupDescription: Subnet Group for MBG RDS
+      SubnetIds:
+        - !Ref SubnetDb1a
+        - !Ref SubnetDb1b
+      Tags:
+        - Key: Name
+          Value: mbg-db-subnet-group
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: mbg-rds-mysql
+      Engine: mysql
+      EngineVersion: '8.0'
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: '20'
+      StorageType: gp2
+      MasterUsername: mbg_admin
+      MasterUserPassword: !Ref DBPassword
+      DBName: mbg_db
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VPCSecurityGroups:
+        - !Ref SgRds
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: mbg-rds-mysql
+
+  # ==========================================
+  # 6. EC2 BACKEND
+  # ==========================================
+  Ec2Backend:
+    Type: AWS::EC2::Instance
+    DependsOn: RDSInstance
+    Properties:
+      ImageId: resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+      InstanceType: t3.micro
+      KeyName: !Ref KeyPairName
+      SubnetId: !Ref SubnetPrivateBe
+      SecurityGroupIds:
+        - !Ref SgBe
+      IamInstanceProfile: LabInstanceProfile
+      Tags:
+        - Key: Name
+          Value: mbg-ec2-be
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd php php-mysqlnd php-pdo php-mbstring git composer
+
+          sed -i 's/Listen 80/Listen 8080/' /etc/httpd/conf/httpd.conf
+
+          systemctl start httpd
+          systemctl enable httpd
+
+          cd /var/www/html
+          rm -rf * .git
+          git clone https://github.com/fendyramadhani9-cloud/mbg-app-deployment.git .
+
+          if [ -f "composer.json" ]; then
+              composer install --no-dev --no-interaction
+          fi
+
+          cat << 'EOF' > /var/www/html/config.php
+          <?php
+          define('DB_HOST', '${RDSInstance.Endpoint.Address}');
+          define('DB_PORT', '3306');
+          define('DB_USER', 'mbg_admin');
+          define('DB_PASS', '${DBPassword}');
+          define('DB_NAME', 'mbg_db');
+          define('AWS_REGION', 'us-east-1');
+          define('S3_BUCKET_NAME', 'mbg-uploads-${UserIdentifier}');
+          define('SNS_TOPIC_ARN', '${SNSTopic}');
+          define('API_KEY', 'mbg-secret-key-2024');
+          define('APP_PORT', 8080);
+          EOF
+
+          if [ -d "/var/www/html/backend" ]; then
+              cp /var/www/html/config.php /var/www/html/backend/config.php
+          fi
+
+          chown -R apache:apache /var/www/html
+          chmod -R 755 /var/www/html
+
+          if [ -f "/var/www/html/backend/core/Database.php" ]; then
+              php /var/www/html/backend/core/Database.php >> /var/log/db_migration.log 2>&1
+          elif [ -f "/var/www/html/core/Database.php" ]; then
+              php /var/www/html/core/Database.php >> /var/log/db_migration.log 2>&1
+          fi
+
+  # ==========================================
+  # 7. LOAD BALANCER & TARGET GROUP (FE)
+  # ==========================================
+  TargetGroupFe:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: mbg-tg-fe
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      HealthCheckPath: /health.php
+      HealthCheckProtocol: HTTP
+      TargetType: instance
+      Tags:
+        - Key: Name
+          Value: mbg-tg-fe
+
+  AlbFe:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: mbg-alb-fe
+      Scheme: internet-facing
+      Subnets:
+        - !Ref SubnetPublicAlb1a
+        - !Ref SubnetPublicAlb1b
+      SecurityGroups:
+        - !Ref SgAlb
+      Tags:
+        - Key: Name
+          Value: mbg-alb-fe
+
+  AlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref AlbFe
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroupFe
+
+  # ==========================================
+  # 8. LAUNCH TEMPLATE & ASG (FE)
+  # ==========================================
+  LaunchTemplateFe:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: mbg-lt-fe
+      LaunchTemplateData:
+        ImageId: resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+        InstanceType: t3.micro
+        KeyName: !Ref KeyPairName
+        SecurityGroupIds:
+          - !Ref SgFe
+        IamInstanceProfile:
+          Name: LabInstanceProfile
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: mbg-ec2-fe
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            yum update -y
+            yum install -y httpd php php-mysqlnd amazon-efs-utils git
+
+            mkdir -p /mnt/efs/mbg-session
+            mount -t efs -o tls ${FileSystemEFS}:/ /mnt/efs/mbg-session
+            echo "${FileSystemEFS}:/ /mnt/efs/mbg-session efs defaults,_netdev 0 0" >> /etc/fstab
+            chmod 777 /mnt/efs/mbg-session
+
+            echo "session.save_path = \"/mnt/efs/mbg-session\"" >> /etc/php.ini
+
+            cd /var/www/html
+            rm -rf * .git
+            git clone https://github.com/fendyramadhani9-cloud/mbg-app-deployment.git .
+
+            cat << 'EOF' > /var/www/html/config.php
+            <?php
+            define('API_BASE_URL', 'http://${Ec2Backend.PrivateIp}:8080/api');
+            define('API_KEY', 'mbg-secret-key-2024');
+            EOF
+
+            if [ -d "/var/www/html/frontend" ]; then
+                cp /var/www/html/config.php /var/www/html/frontend/config.php
+            fi
+
+            chown -R apache:apache /var/www/html
+            chmod -R 755 /var/www/html
+            systemctl start httpd
+            systemctl enable httpd
+
+  AutoScalingGroupFe:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: mbg-asg-fe
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplateFe
+        Version: !GetAtt LaunchTemplateFe.LatestVersionNumber
+      MinSize: '2'
+      MaxSize: '4'
+      DesiredCapacity: '2'
+      VPCZoneIdentifier:
+        - !Ref SubnetPrivateFe1a
+        - !Ref SubnetPrivateFe1b
+      TargetGroupARNs:
+        - !Ref TargetGroupFe
+      Tags:
+        - Key: Name
+          Value: mbg-ec2-fe
+          PropagateAtLaunch: true
+
+  ScalingPolicyCpu:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroupFe
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 60.0
+
+# ==========================================
+# 9. OUTPUTS (SALIN KE LEMBAR BAB G)
+# ==========================================
+Outputs:
+  VpcId:
+    Description: 'VPC ID (mbg-vpc)'
+    Value: !Ref VPC
+  NatGatewayId:
+    Description: 'NAT Gateway ID (mbg-natgw-1a)'
+    Value: !Ref NatGateway
+  RdsEndpoint:
+    Description: 'RDS Endpoint (mbg-rds-mysql)'
+    Value: !GetAtt RDSInstance.Endpoint.Address
+  S3BucketName:
+    Description: 'S3 Bucket Name'
+    Value: !Ref S3Bucket
+  SnsTopicArn:
+    Description: 'SNS Topic ARN (mbg-sns-notifikasi)'
+    Value: !Ref SNSTopic
+  Ec2BePrivateIp:
+    Description: 'EC2 BE Private IP (mbg-ec2-be)'
+    Value: !GetAtt Ec2Backend.PrivateIp
+  AlbDnsName:
+    Description: 'ALB DNS Name (mbg-alb-fe)'
+    Value: !GetAtt AlbFe.DNSName
+  AutoScalingGroupName:
+    Description: 'Auto Scaling Group Name'
+    Value: !Ref AutoScalingGroupFe
+  TargetGroupArn:
+    Description: 'Target Group ARN (mbg-tg-fe)'
+    Value: !Ref TargetGroupFe
+  EfsFileSystemId:
+    Description: 'EFS File System ID (mbg-efs-fe-session)'
+    Value: !Ref FileSystemEFS
