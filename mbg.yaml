@@ -286,7 +286,7 @@ Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "mbg-uploads-${UserIdentifier}"
+      BucketName: !Sub "mbg-uploads-${UserIdentifier}-${AWS::AccountId}"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -294,7 +294,7 @@ Resources:
         RestrictPublicBuckets: true
       Tags:
         - Key: Name
-          Value: !Sub "mbg-uploads-${UserIdentifier}"
+          Value: !Sub "mbg-uploads-${UserIdentifier}-${AWS::AccountId}"
 
   SNSTopic:
     Type: AWS::SNS::Topic
@@ -391,7 +391,14 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           yum update -y
-          yum install -y httpd php php-mysqlnd php-pdo php-mbstring git composer
+          # Install paket (composer TIDAK tersedia di AL2023 repo, install manual)
+          yum install -y httpd php php-mysqlnd php-pdo php-mbstring git
+
+          # Install Composer via curl
+          curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+          # Izinkan Apache membuat koneksi TCP keluar (wajib untuk PHP -> RDS MySQL)
+          setsebool -P httpd_can_network_connect 1
 
           sed -i 's/Listen 80/Listen 8080/' /etc/httpd/conf/httpd.conf
           sed -i 's|DocumentRoot "/var/www/html"|DocumentRoot "/var/www/html/backend/public"|' /etc/httpd/conf/httpd.conf
@@ -411,15 +418,15 @@ Resources:
               cd /var/www/html
           fi
 
-          # Fill .env file without overwriting config.php
+          # Fill .env file
           cat << 'EOF' > /var/www/html/backend/.env
           DB_HOST=${RDSInstance.Endpoint.Address}
           DB_PORT=3306
           DB_USER=mbg_admin
           DB_PASS=${DBPassword}
           DB_NAME=mbg_db
-          S3_BUCKET=mbg-uploads-${UserIdentifier}
-          S3_BUCKET_NAME=mbg-uploads-${UserIdentifier}
+          S3_BUCKET=mbg-uploads-${UserIdentifier}-${AWS::AccountId}
+          S3_BUCKET_NAME=mbg-uploads-${UserIdentifier}-${AWS::AccountId}
           AWS_REGION=us-east-1
           SNS_TOPIC_ARN=${SNSTopic}
           API_KEY=mbg-secret-key-2024
@@ -435,7 +442,7 @@ Resources:
 
           # Run migration CLI script
           if [ -f "/var/www/html/backend/migrate.php" ]; then
-              php /var/www/html/backend/migrate.php >> /var/log/db_migration.log 2>&1
+              php /var/www/html/backend/migrate.php >> /var/log/db_migration.log 2>&1 || true
           fi
 
   # ==========================================
@@ -505,10 +512,14 @@ Resources:
             yum update -y
             yum install -y httpd php php-mysqlnd amazon-efs-utils git
 
+            # Izinkan Apache membuat koneksi TCP keluar (wajib untuk curl PHP -> BE API)
+            setsebool -P httpd_can_network_connect 1
+
             mkdir -p /mnt/efs/mbg-session
-            mount -t efs -o tls ${FileSystemEFS}:/ /mnt/efs/mbg-session
-            echo "${FileSystemEFS}:/ /mnt/efs/mbg-session efs defaults,_netdev 0 0" >> /etc/fstab
-            chmod 777 /mnt/efs/mbg-session
+            # Mount EFS dengan error handling - jika gagal, httpd tetap lanjut
+            mount -t efs -o tls,_netdev ${FileSystemEFS}:/ /mnt/efs/mbg-session || echo "[WARN] EFS mount gagal, lanjut tanpa EFS"
+            echo "${FileSystemEFS}:/ /mnt/efs/mbg-session efs defaults,_netdev,tls 0 0" >> /etc/fstab
+            chmod 777 /mnt/efs/mbg-session 2>/dev/null || true
 
             echo "session.save_path = \"/mnt/efs/mbg-session\"" >> /etc/php.ini
 
@@ -523,7 +534,7 @@ Resources:
             # Deleting backend folder on frontend EC2
             rm -rf /var/www/html/backend
 
-            # Fill .env file without overwriting config.php
+            # Fill .env file
             cat << 'EOF' > /var/www/html/frontend/.env
             API_BASE_URL=http://${Ec2Backend.PrivateIp}:8080/api
             API_KEY=mbg-secret-key-2024
@@ -538,6 +549,9 @@ Resources:
 
   AutoScalingGroupFe:
     Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - MountTarget1a
+      - MountTarget1b
     Properties:
       AutoScalingGroupName: mbg-asg-fe
       LaunchTemplate:
@@ -546,6 +560,8 @@ Resources:
       MinSize: '2'
       MaxSize: '4'
       DesiredCapacity: '2'
+      HealthCheckType: ELB
+      HealthCheckGracePeriodSeconds: 300
       VPCZoneIdentifier:
         - !Ref SubnetPrivateFe1a
         - !Ref SubnetPrivateFe1b
