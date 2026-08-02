@@ -34,10 +34,12 @@ $pageTitle = $pageTitle ?? 'MBG App';
         <a href="/views/bgn/laporan.php" class="<?= ($activeNav ?? '') === 'laporan' ? 'active' : '' ?>">Laporan</a>
         <a href="/views/bgn/aduan.php" class="<?= ($activeNav ?? '') === 'aduan' ? 'active' : '' ?>">Aduan</a>
         <a href="/views/bgn/sppg.php" class="<?= ($activeNav ?? '') === 'sppg' ? 'active' : '' ?>">Master SPPG</a>
+        <a href="/views/bgn/users.php" class="<?= ($activeNav ?? '') === 'users' ? 'active' : '' ?>">Kelola Akun</a>
       <?php elseif ($user['role'] === 'sppg'): ?>
         <a href="/views/sppg/dashboard.php" class="<?= ($activeNav ?? '') === 'dashboard' ? 'active' : '' ?>">Dashboard</a>
         <a href="/views/sppg/laporan.php" class="<?= ($activeNav ?? '') === 'laporan' ? 'active' : '' ?>">Laporan</a>
         <a href="/views/sppg/aduan.php" class="<?= ($activeNav ?? '') === 'aduan' ? 'active' : '' ?>">Aduan Masuk</a>
+        <a href="/views/sppg/users.php" class="<?= ($activeNav ?? '') === 'users' ? 'active' : '' ?>">Pengajuan Akun</a>
       <?php else: ?>
         <a href="/views/masyarakat/dashboard.php" class="<?= ($activeNav ?? '') === 'dashboard' ? 'active' : '' ?>">Beranda</a>
         <a href="/views/masyarakat/aduan.php" class="<?= ($activeNav ?? '') === 'aduan' ? 'active' : '' ?>">Aduan Saya</a>

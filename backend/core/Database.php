@@ -137,10 +137,12 @@ class Database
                 `password`   VARCHAR(255)                      NOT NULL,
                 `role`       ENUM('bgn','sppg','masyarakat')   NOT NULL DEFAULT 'masyarakat',
                 `sppg_id`    INT                                        DEFAULT NULL,
+                `status`     ENUM('aktif','pending','ditolak') NOT NULL DEFAULT 'aktif',
                 `created_at` DATETIME                          NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (`id`),
                 UNIQUE KEY `uq_users_email` (`email`),
                 INDEX  `idx_users_role`    (`role`),
+                INDEX  `idx_users_status`  (`status`),
                 CONSTRAINT `fk_users_sppg`
                     FOREIGN KEY (`sppg_id`) REFERENCES `sppg` (`id`)
                     ON DELETE SET NULL
@@ -243,6 +245,7 @@ class Database
                 'password' => $hashedPassword,
                 'role'     => 'bgn',
                 'sppg_id'  => null,
+                'status'   => 'aktif',
             ],
             // Role: sppg (operator, terhubung ke SPPG Pusat Jakarta / id=1)
             [
@@ -251,6 +254,7 @@ class Database
                 'password' => $hashedPassword,
                 'role'     => 'sppg',
                 'sppg_id'  => 1,
+                'status'   => 'aktif',
             ],
             // Role: masyarakat (pengguna umum, tidak terkait SPPG)
             [
@@ -259,12 +263,13 @@ class Database
                 'password' => $hashedPassword,
                 'role'     => 'masyarakat',
                 'sppg_id'  => null,
+                'status'   => 'aktif',
             ],
         ];
 
         $stmtUser = $pdo->prepare("
-            INSERT INTO `users` (`nama`, `email`, `password`, `role`, `sppg_id`)
-            VALUES (:nama, :email, :password, :role, :sppg_id)
+            INSERT INTO `users` (`nama`, `email`, `password`, `role`, `sppg_id`, `status`)
+            VALUES (:nama, :email, :password, :role, :sppg_id, :status)
         ");
 
         foreach ($usersData as $row) {

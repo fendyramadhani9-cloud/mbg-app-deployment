@@ -213,6 +213,7 @@ input:focus, select:focus, textarea:focus {
 .btn:hover { background: var(--primary-hover); }
 .btn.secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
 .btn.danger { background: var(--danger); color: #fff; }
+.btn.success { background: var(--success); color: #fff; }
 .btn.block { width: 100%; justify-content: center; }
 .btn.small { padding: 6px 12px; font-size: .82rem; }
 
@@ -261,9 +262,10 @@ td.wrap { white-space: normal; max-width: 280px; }
     font-size: .74rem;
     font-weight: 700;
 }
-.badge.menunggu, .badge.baru { background: rgba(184,134,11,.15); color: var(--warning); }
-.badge.ditinjau, .badge.diproses { background: rgba(31,111,140,.15); color: #2f8fc4; }
-.badge.selesai { background: rgba(31,138,76,.15); color: var(--success); }
+.badge.menunggu, .badge.baru, .badge.warning { background: rgba(184,134,11,.15); color: var(--warning); }
+.badge.ditinjau, .badge.diproses, .badge.blue { background: rgba(31,111,140,.15); color: #2f8fc4; }
+.badge.selesai, .badge.success { background: rgba(31,138,76,.15); color: var(--success); }
+.badge.danger { background: rgba(192,57,43,.15); color: var(--danger); }
 
 /* ============ Responsive ============ */
 @media (max-width: 860px) {

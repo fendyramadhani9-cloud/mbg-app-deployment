@@ -23,7 +23,7 @@ function handle_auth(string $action, string $method): void
             Response::error('Email sudah terdaftar', 'VALIDATION_ERROR', 400);
         }
 
-        $stmt = $pdo->prepare('INSERT INTO users (nama, email, password, role) VALUES (?, ?, ?, ?)');
+        $stmt = $pdo->prepare('INSERT INTO users (nama, email, password, role, status) VALUES (?, ?, ?, ?, "aktif")');
         $stmt->execute([$nama, $email, Auth::hashPassword($pass), 'masyarakat']);
 
         Response::success(['id' => $pdo->lastInsertId()], 'Registrasi berhasil', 201);
@@ -40,6 +40,14 @@ function handle_auth(string $action, string $method): void
 
         if (!$user || !Auth::verifyPassword($pass, $user['password'])) {
             Response::error('Email atau password salah', 'UNAUTHORIZED', 401);
+        }
+
+        if (($user['status'] ?? 'aktif') === 'pending') {
+            Response::error('Akun Anda masih menunggu persetujuan (approval) Admin BGN.', 'ACCOUNT_PENDING', 403);
+        }
+
+        if (($user['status'] ?? 'aktif') === 'ditolak') {
+            Response::error('Akun Anda telah ditolak oleh Admin BGN.', 'ACCOUNT_REJECTED', 403);
         }
 
         Auth::login($user);
