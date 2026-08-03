@@ -12,6 +12,7 @@ require_once __DIR__ . '/../api/aduan.php';
 require_once __DIR__ . '/../api/monitoring.php';
 require_once __DIR__ . '/../api/sppg.php';
 require_once __DIR__ . '/../api/upload.php';
+require_once __DIR__ . '/../api/users.php';
 
 Auth::startSession();
 
@@ -73,6 +74,10 @@ switch ($resource) {
 
     case 'upload':
         handle_upload($method);
+        break;
+
+    case 'users':
+        handle_users($method, $sub1, $sub2);
         break;
 
     default:
