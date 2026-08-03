@@ -31,7 +31,7 @@ if (!function_exists('fe_cfg')) {
 
 // 1. Ambil Nilai Konfigurasi
 $sessionSavePath = fe_cfg('SESSION_SAVE_PATH', '/mnt/efs/mbg-session');
-$apiBaseUrl      = fe_cfg('API_BASE_URL', 'http://10.20.10.134:8080/api');
+$apiBaseUrl      = fe_cfg('API_BASE_URL', 'http://localhost:8080/api');
 $apiKey          = fe_cfg('API_KEY', 'mbg-secret-key-2024');
 
 // 2. Set Session Save Path ke EFS SEBELUM session_start()
